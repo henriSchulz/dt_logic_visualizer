@@ -6,13 +6,18 @@ const VARIABLE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 function renderTopFrameRow(wrapper, numberOfVariables) {
     const topRow = document.createElement("div");
-    topRow.classList.add("symmetry-diagram-row");
+    
+    topRow.classList.add("symmetry-diagram-row", "symmetry-diagram-top-frame-row");
 
     const {cols} = getNumberOfRowsAndCols(numberOfVariables)
     
     for (let i = 0; i < cols+2; i++) {
         const cell = document.createElement("div");
         cell.classList.add("symmetry-diagram-frame-cell", "symmetry-diagram-top-frame-cell");
+        if(i=== 0) {
+            cell.classList.add("symmetry-diagram-left-frame-cell");
+        }
+
 
         cell.textContent = i === 2 ? VARIABLE_NAMES[0] : " "
         if(i === 2) {
@@ -39,6 +44,9 @@ function renderBottomFrameRow(wrapper, numberOfVariables) {
         const cell = document.createElement("div");
         cell.classList.add("symmetry-diagram-frame-cell");
         cell.textContent = i === 3 ? VARIABLE_NAMES[2] : " ";
+        if(i === 0) {
+            cell.classList.add("symmetry-diagram-left-frame-cell");
+        }
 
         if(i === 3) {
             cell.classList.add("symmetry-diagram-frame-bottom-label-cell");
