@@ -1,8 +1,21 @@
 
+function gray(decimal) {
+    const bits = decimal.toString(2).padStart(32, '0').split('').map(Number);
+
+    return bits.reduce((acc, bit, index) => {
+        if (index === 0) return bit; // The first bit remains the same
+        return acc ^ bit; // XOR with the previous bit
+    }, 0);
+}
 
 
 
-function mapDecimalToSymmetryDiagramField(decimalIndex, numberOfVariables) {
+
+
+
+
+
+export function mapDecimalToSymmetryDiagramField(decimalIndex, numberOfVariables) {
 
     if(numberOfVariables > 4 || numberOfVariables < 2) {
         throw new Error("'numberOfVariables' must be an integer ∈ [2, 4]");
@@ -12,12 +25,19 @@ function mapDecimalToSymmetryDiagramField(decimalIndex, numberOfVariables) {
         throw new Error(`'decimalIndex' must be an integer ∈ [0, ${(2**numberOfVariables)-1}]`);
     }
 
+
+
     const a0 = (decimalIndex >> 0) & 1;
     const a1 = (decimalIndex >> 1) & 1;
     const a2 = (decimalIndex >> 2) & 1;
     const a3 = (decimalIndex >> 3) & 1;
+    
+
     const r = (a3 ^ a1) + (a3 << 1);
     const c = (a2 ^ a0) + (a2 << 1);
+    
+
+
     return [r, c];
 }
 
@@ -70,3 +90,5 @@ export function truthTableToSymmetryDiagram(numberOfVariables, truthTable) {
     }
     return symmetryDiagram;
 }
+
+
