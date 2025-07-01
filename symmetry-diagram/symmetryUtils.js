@@ -1,20 +1,4 @@
 
-function gray(decimal) {
-    const bits = decimal.toString(2).padStart(32, '0').split('').map(Number);
-
-    return bits.reduce((acc, bit, index) => {
-        if (index === 0) return bit; // The first bit remains the same
-        return acc ^ bit; // XOR with the previous bit
-    }, 0);
-}
-
-
-
-
-
-
-
-
 export function mapDecimalToSymmetryDiagramField(decimalIndex, numberOfVariables) {
 
     if(numberOfVariables > 4 || numberOfVariables < 2) {
