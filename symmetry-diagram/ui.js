@@ -1,7 +1,7 @@
 import { truthTableToSymmetryDiagram, decimalToOctal, getNumberOfRowsAndCols} from './symmetryUtils.js';
 
 
-const VARIABLE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"];
+import { VARIABLE_NAMES } from '../index.js';
 
 
 function renderTopFrameRow(wrapper, numberOfVariables) {
