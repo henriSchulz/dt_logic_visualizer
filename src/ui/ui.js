@@ -56,7 +56,7 @@ function renderTruth() {
   let j = 0;
   logicState.truth.forEach((r) => {
     const cls = r.out === 1 ? "on" : r.out === null ? "dc" : "off";
-    const dsp = r.out === null ? "/" : r.out;
+    const dsp = r.out === null ? "-" : r.out;
     h += `<tr><td>${[...r.bits].join("</td><td>")}</td>
         <td class="outCell ${cls}" data-bits="${r.bits}">${dsp}</td></tr>`;
         j++;
