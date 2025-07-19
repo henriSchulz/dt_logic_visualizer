@@ -9,21 +9,18 @@ export function mapDecimalToSymmetryDiagramField(decimalIndex, numberOfVariables
         throw new Error(`'decimalIndex' must be an integer ∈ [0, ${(2**numberOfVariables)-1}]`);
     }
 
-
-
     const a0 = (decimalIndex >> 0) & 1;
     const a1 = (decimalIndex >> 1) & 1;
     const a2 = (decimalIndex >> 2) & 1;
     const a3 = (decimalIndex >> 3) & 1;
     
-
     const r = (a3 ^ a1) + (a3 << 1);
     const c = (a2 ^ a0) + (a2 << 1);
     
-
-
     return [r, c];
 }
+
+
 
 export function getNumberOfRowsAndCols(numberOfVariables) {
     if (numberOfVariables < 2 || numberOfVariables > 4) {
@@ -67,7 +64,7 @@ export function truthTableToSymmetryDiagram(numberOfVariables, truthTable) {
     const symmetryDiagram = createEmptySymmetryDiagram(numberOfVariables);
    
     for (let i = 0; i < 2**numberOfVariables; i++) {
-        const [r, c] = mapDecimalToSymmetryDiagramField(i);
+        const [r, c] = mapDecimalToSymmetryDiagramField(i, numberOfVariables);
         if (r !== null && c !== null) {
             symmetryDiagram[r][c] = truthTable[i];
         }

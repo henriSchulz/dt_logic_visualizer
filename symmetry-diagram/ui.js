@@ -132,7 +132,13 @@ export function renderSymmetryDiagram(numberOfVariables, truthTable) {
             const cell = document.createElement("div");
             cell.classList.add(diagrammRow[c].val ? "on" : (diagrammRow[c].val === null ? "dc": "off"))
             cell.classList.add("symmetry-diagram-cell", "outCell")
-            cell.setAttribute("data-bits", diagrammRow[c].index.toString(2).padStart(numberOfVariables, '0'));
+            
+            // Convert decimal index to LSB-first bit representation to match truth table
+            const decimalIndex = diagrammRow[c].index;
+            const binaryMSB = decimalIndex.toString(2).padStart(numberOfVariables, '0');
+            const binaryLSB = binaryMSB.split('').reverse().join('');
+            cell.setAttribute("data-bits", binaryLSB);
+            
             const octalIndexValue = decimalToOctal(diagrammRow[c].index);
 
             const octalIndex = document.createElement("span");

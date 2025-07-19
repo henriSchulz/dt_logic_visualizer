@@ -30,12 +30,18 @@ function renderAll() {
   $("varCountLbl").textContent = logicState.nVars;
   renderTruth();
   renderKMap();
-  const sortedTruth = logicState.truth
-    .slice()
-    .sort((a, b) => a.bits.localeCompare(b.bits));
+  
+  // For symmetry diagram, we need truth table sorted by decimal value, not lexicographically
+  const truthByDecimalOrder = [];
+  for (let i = 0; i < (1 << logicState.nVars); i++) {
+    const binaryLSB = i.toString(2).padStart(logicState.nVars, '0').split('').reverse().join('');
+    const truthEntry = logicState.truth.find(t => t.bits === binaryLSB);
+    truthByDecimalOrder.push(truthEntry ? truthEntry.out : 0);
+  }
+  
   renderSymmetryDiagram(
     logicState.nVars,
-    sortedTruth.map((t) => t.out)
+    truthByDecimalOrder
   );
 
   renderExpr();
@@ -47,11 +53,13 @@ function renderTruth() {
   let h = '<table class="truth"><tr>';
   for (let i = 0; i < logicState.nVars; i++) h += `<th>${VARIABLE_NAMES[i]}</th>`;
   h += "<th>f</th></tr>";
+  let j = 0;
   logicState.truth.forEach((r) => {
     const cls = r.out === 1 ? "on" : r.out === null ? "dc" : "off";
     const dsp = r.out === null ? "/" : r.out;
     h += `<tr><td>${[...r.bits].join("</td><td>")}</td>
         <td class="outCell ${cls}" data-bits="${r.bits}">${dsp}</td></tr>`;
+        j++;
   });
   h += "</table>";
   const truthWrap = document.querySelector(
