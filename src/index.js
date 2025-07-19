@@ -1,9 +1,7 @@
-import {init } from "./ui.js";
+import { init } from "./ui/ui.js";
 
 
-export const VARIABLE_NAMES = ["A", "B", "C", "D"];
-
-
+export const VARIABLE_NAMES = ["A", "B", "C", "D", "E"];
 
 
 export const expansionState = {

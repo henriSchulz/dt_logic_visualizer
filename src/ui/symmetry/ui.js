@@ -1,4 +1,4 @@
-import { truthTableToSymmetryDiagram, decimalToOctal, getNumberOfRowsAndCols} from './symmetryUtils.js';
+import { truthTableToSymmetryDiagram, decimalToOctal, getNumberOfRowsAndCols} from '../../logic/symmetry.js';
 
 
 import { VARIABLE_NAMES } from '../index.js';

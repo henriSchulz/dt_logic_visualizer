@@ -1,4 +1,4 @@
- import { renderSymmetryDiagram } from './symmetry-diagram/ui.js';
+ import { renderSymmetryDiagram } from './symmetry/ui.js';
 
 import {
   setSvgMux,
@@ -8,14 +8,14 @@ import {
   generateMuxDiagramStructure,
   calculateMuxLayout,
   renderMuxDiagram,
-} from "./mux.js";
+} from "../logic/mux.js";
 
-import { $, debounce, applyPreset} from "./utils.js";
+import { $, debounce, applyPreset} from "../utils/utils.js";
 
-import { buildTruth } from './truth.js';
+import { buildTruth } from '../logic/truth.js';
 
-import { minimize, expand, lit, simplifiedBooleanExpansionRecursive } from './booleanForm.js';
-import { logicState, VARIABLE_NAMES, expansionState, DEFAULT_LAYOUT_CONFIG } from './index.js';
+import { minimize, expand, lit, simplifiedBooleanExpansionRecursive } from '../logic/booleanForm.js';
+import { logicState, VARIABLE_NAMES, expansionState, DEFAULT_LAYOUT_CONFIG } from '../index.js';
 
 
 function genSpanId() {
