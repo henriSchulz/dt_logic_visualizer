@@ -6,7 +6,7 @@ export function renderLogicGate() {
   const logicGateCard = document.getElementById("logicGateCard");
   if (!logicGateCard) return;
 
-  const container = logicGateCard.querySelector(".card-body");
+  const container = document.getElementById("logic-gate-container");
   if (!container) return;
 
   container.innerHTML = ""; // Clear previous content
@@ -20,8 +20,19 @@ export function renderLogicGate() {
 
   const normalizedExpr = normalizeExpression(expression);
 
+  const selectInput = document.getElementById('gate-input-select');
+  if (selectInput && !selectInput.dataset.listener) {
+      selectInput.addEventListener('change', renderLogicGate);
+      selectInput.dataset.listener = 'true';
+  }
+
+  const maxInputs = parseInt(selectInput.value, 10);
+
   try {
-    const ast = parse(normalizedExpr);
+    let ast = parse(normalizedExpr);
+    if (maxInputs > 1) { // 0 or 1 means no limit
+        ast = factorAst(ast, maxInputs);
+    }
     const svg = renderSvg(ast);
     container.appendChild(svg);
   } catch (error) {
@@ -265,4 +276,63 @@ function connect(g, fromNode, toNode, side) {
     path.setAttribute("stroke-width", "2");
     path.setAttribute("fill", "none");
     g.insertBefore(path, g.firstChild);
+}
+
+// ----------------- Expression Factoring -----------------
+
+function factorAst(node, maxInputs) {
+    if (!node || node.type === 'variable' || maxInputs <= 1) {
+        return node;
+    }
+
+    // Recursively factor children first
+    node.left = factorAst(node.left, maxInputs);
+    if (node.right) {
+        node.right = factorAst(node.right, maxInputs);
+    }
+
+    // If the node is an operator we care about, collect its operands and regroup
+    if (node.type === 'operator' && (node.op === '&' || node.op === '|')) {
+        const operands = [];
+        collectOperands(node, node.op, operands);
+        if (operands.length > maxInputs) {
+            return groupOperands(operands, node.op, maxInputs);
+        }
+    }
+
+    return node;
+}
+
+function collectOperands(node, op, operands) {
+    if (!node || node.type !== 'operator' || node.op !== op) {
+        operands.push(node);
+        return;
+    }
+    collectOperands(node.left, op, operands);
+    collectOperands(node.right, op, operands);
+}
+
+function groupOperands(operands, op, maxInputs) {
+    if (operands.length <= maxInputs) {
+        return buildTreeFromOperands(operands, op);
+    }
+
+    const newOperands = [
+        buildTreeFromOperands(operands.slice(0, maxInputs), op),
+        ...operands.slice(maxInputs)
+    ];
+
+    return groupOperands(newOperands, op, maxInputs);
+}
+
+function buildTreeFromOperands(operands, op) {
+    if (operands.length === 0) return null;
+    if (operands.length === 1) return operands[0];
+
+    // Create a left-associative tree from the operands
+    let root = { type: 'operator', op: op, left: operands[0], right: operands[1] };
+    for (let i = 2; i < operands.length; i++) {
+        root = { type: 'operator', op: op, left: root, right: operands[i] };
+    }
+    return root;
 }
