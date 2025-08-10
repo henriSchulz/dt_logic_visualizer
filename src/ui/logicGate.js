@@ -95,8 +95,8 @@ const GATE_WIDTH = 60;
 const GATE_HEIGHT = 40;
 const NOT_GATE_SIZE = 40;
 const LEVEL_SEPARATION = 100;
-const SIBLING_SEPARATION = 30;
-const PADDING = 20;
+const SIBLING_SEPARATION = 20;
+const PADDING = 10;
 
 let y_pos = 0;
 let max_level = 0;
