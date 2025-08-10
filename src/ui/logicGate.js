@@ -230,7 +230,7 @@ function connect(g, fromNode, toNode, side) {
     let toX, toY;
     toY = toNode.y;
     if (toNode.type === 'variable') {
-        toX = toNode.x;
+        toX = toNode.x + 15; // Add offset to avoid drawing line over the text
     } else {
         const isNot = toNode.op === '!';
         const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
