@@ -264,7 +264,7 @@ function connect(g, fromNode, toNode, index, totalChildren) {
         }
     }
 
-    const midX = (fromX + toX) / 2;
+    const midX = fromX - 20 - (index * 15);
 
     path.setAttribute("d", `M ${fromX},${fromY} H ${midX} V ${toY} H ${toX}`);
 
