@@ -237,31 +237,37 @@ function createGate(g, node) {
     g.appendChild(group);
 }
 
-function connect(g, fromNode, toNode, index, totalChildren) {
+function connect(g, fromNode, toNode) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
+    // fromNode is the parent gate, toNode is the child gate/variable
+    // The line goes from the output of toNode to an input of fromNode
+
+    // Calculate the output point of the child (toNode)
+    let toX, toY;
+    toY = toNode.y;
+    if (toNode.type === 'variable') {
+        toX = toNode.x; // The 'output' of a variable is its x position
+    } else {
+        const isNot = toNode.op === '!';
+        const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
+        toX = toNode.x + width;
+        if (isNot) {
+            toX += 10; // Account for negation circle radius and gap
+        }
+    }
+
+    // Find the index of toNode in fromNode's children to determine which input pin to connect to
+    const index = fromNode.children.findIndex(child => child === toNode);
+    const totalChildren = fromNode.children.length;
+
+    // Calculate the input point on the parent (fromNode)
     const fromX = fromNode.x;
     const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     let fromY = fromNode.y;
-
     if (totalChildren > 1) {
         const spacing = fromHeight / (totalChildren + 1);
         fromY = (fromNode.y - fromHeight / 2) + spacing * (index + 1);
-    }
-
-    let toX;
-    const toY = toNode.y;
-    const toIsVariable = toNode.type === 'variable';
-    const toIsNot = toNode.op === '!';
-    const toWidth = toIsNot ? NOT_GATE_SIZE : GATE_WIDTH;
-
-    if (toIsVariable) {
-        toX = toNode.x + toNode.name.length * 10;
-    } else {
-        toX = toNode.x + toWidth;
-        if (toIsNot) {
-            toX += 10;
-        }
     }
 
     const midX = fromX - 20 - (index * 15);
