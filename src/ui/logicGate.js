@@ -93,6 +93,7 @@ function parseFactor() {
 // ----------------- SVG Renderer -----------------
 const GATE_WIDTH = 60;
 const GATE_HEIGHT = 40;
+const NOT_GATE_SIZE = 40;
 const LEVEL_SEPARATION = 100;
 const SIBLING_SEPARATION = 30;
 const PADDING = 20;
@@ -110,15 +111,14 @@ function renderSvg(ast) {
 
     layout(ast, 0);
 
-    const totalWidth = (max_level + 1) * LEVEL_SEPARATION + PADDING * 2;
+    const totalWidth = (max_level + 1) * LEVEL_SEPARATION + GATE_WIDTH + PADDING * 2;
     const totalHeight = y_pos + PADDING;
 
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", totalHeight);
     svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
 
-    // Reverse x-coordinates for left-to-right layout
-    reverseLayout(ast, max_level, totalWidth);
+    reverseLayout(ast, max_level);
 
     draw(g, ast);
 
@@ -131,9 +131,11 @@ function layout(node, level) {
     node.level = level;
     if(level > max_level) max_level = level;
 
+    const height = node.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
+
     if (node.type === 'variable') {
         node.y = y_pos;
-        y_pos += GATE_HEIGHT + SIBLING_SEPARATION;
+        y_pos += height + SIBLING_SEPARATION;
         return;
     }
 
@@ -146,11 +148,11 @@ function layout(node, level) {
     }
 }
 
-function reverseLayout(node, max_level, totalWidth) {
+function reverseLayout(node, max_level) {
     if (!node) return;
     node.x = (max_level - node.level) * LEVEL_SEPARATION + PADDING;
-    reverseLayout(node.left, max_level, totalWidth);
-    reverseLayout(node.right, max_level, totalWidth);
+    reverseLayout(node.left, max_level);
+    reverseLayout(node.right, max_level);
 }
 
 
@@ -169,45 +171,57 @@ function draw(g, node) {
     }
 }
 
-const GATE_PATHS = {
-    AND: "M0,0 H30 C45,0 45,40 30,40 H0 Z",
-    OR: "M0,5 C5,5 25,0 40,0 C60,20 60,20 40,40 C25,40 5,35 0,35 C15,30 15,10 0,5 Z",
-    NOT: "M0,0 L40,20 L0,40 Z",
-};
-
 function createGate(g, node) {
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    group.setAttribute("transform", `translate(${node.x}, ${node.y - GATE_HEIGHT / 2})`);
+
+    const isNot = node.op === '!';
+    const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
+    const height = isNot ? NOT_GATE_SIZE : GATE_HEIGHT;
 
     if (node.type === 'variable') {
+        group.setAttribute("transform", `translate(${node.x}, ${node.y - height / 2})`);
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", 0);
-        text.setAttribute("y", GATE_HEIGHT / 2);
+        text.setAttribute("y", height / 2);
         text.setAttribute("text-anchor", "start");
         text.setAttribute("dominant-baseline", "central");
         text.setAttribute("font-size", "20");
         text.textContent = node.name;
         group.appendChild(text);
     } else {
-        const gateType = node.op === '&' ? 'AND' : (node.op === '|' ? 'OR' : 'NOT');
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", GATE_PATHS[gateType]);
-        path.setAttribute("fill", "white");
-        path.setAttribute("stroke", "black");
-        path.setAttribute("stroke-width", "2");
+        group.setAttribute("transform", `translate(${node.x}, ${node.y - height / 2})`);
 
-        group.appendChild(path);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("width", width);
+        rect.setAttribute("height", height);
+        rect.setAttribute("fill", "white");
+        rect.setAttribute("stroke", "black");
+        rect.setAttribute("stroke-width", "2");
+        group.appendChild(rect);
 
-        if (node.op === '!') {
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", width / 2);
+        text.setAttribute("y", height / 2);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "central");
+        text.setAttribute("font-size", "20");
+
+        if (isNot) {
+            text.textContent = "1";
             const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            circle.setAttribute("cx", 45);
-            circle.setAttribute("cy", 20);
+            circle.setAttribute("cx", width + 5);
+            circle.setAttribute("cy", height / 2);
             circle.setAttribute("r", 5);
             circle.setAttribute("fill", "white");
             circle.setAttribute("stroke", "black");
             circle.setAttribute("stroke-width", "2");
             group.appendChild(circle);
+        } else if (node.op === '&') {
+            text.textContent = "&";
+        } else if (node.op === '|') {
+            text.textContent = "≥1";
         }
+        group.appendChild(text);
     }
     g.appendChild(group);
 }
@@ -215,19 +229,32 @@ function createGate(g, node) {
 function connect(g, fromNode, toNode, side) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
+    // --- Calculate connection points ---
+    const fromIsTopInput = side === -1;
+    const fromIsBottomInput = side === 1;
+    const fromIsSingleInput = side === 0;
+
+    const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     const fromX = fromNode.x;
     let fromY = fromNode.y;
-    if (side === -1) fromY -= 10;
-    if (side === 1) fromY += 10;
 
-    let toX = toNode.x;
+    if (fromIsTopInput) fromY -= fromHeight / 4;
+    if (fromIsBottomInput) fromY += fromHeight / 4;
+
+    let toX;
     const toY = toNode.y;
+    const toIsVariable = toNode.type === 'variable';
+    const toIsNot = toNode.op === '!';
+    const toWidth = toIsNot ? NOT_GATE_SIZE : GATE_WIDTH;
 
-    if (toNode.type === 'variable') {
-        toX += 20; // Move to the right of the variable name
+    if (toIsVariable) {
+        // Estimate variable text width (simple approximation)
+        toX = toNode.x + toNode.name.length * 10;
     } else {
-        toX += GATE_WIDTH;
-        if(toNode.op === '!') toX += 10; // Extra space for NOT circle
+        toX = toNode.x + toWidth;
+        if (toIsNot) {
+            toX += 10; // Account for negation circle
+        }
     }
 
     const midX = (fromX + toX) / 2;
