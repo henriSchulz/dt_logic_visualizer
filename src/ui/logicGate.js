@@ -226,7 +226,7 @@ function drawDag(g, levels, uniqueInputs, nodeMap) {
             const children = [parentNode.left, parentNode.right].filter(c => c);
             children.forEach((child, index) => {
                 const childNode = nodeMap.get(child.id);
-                const sourceNode = childNode.isUniqueInput ? uniqueInputs[childNode.name] : childNode;
+                const sourceNode = (childNode.type === 'variable') ? uniqueInputs[childNode.name] : childNode;
                 connect(g, parentNode, sourceNode, index, children.length);
             });
         });
