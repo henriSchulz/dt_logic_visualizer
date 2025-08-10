@@ -9,7 +9,7 @@ export function renderLogicGate() {
   const container = document.getElementById("logic-gate-container");
   if (!container) return;
 
-  container.innerHTML = ""; // Clear previous content
+  container.innerHTML = "";
 
   const expression = getMinimalExpression();
 
@@ -20,19 +20,8 @@ export function renderLogicGate() {
 
   const normalizedExpr = normalizeExpression(expression);
 
-  const selectInput = document.getElementById('gate-input-select');
-  if (selectInput && !selectInput.dataset.listener) {
-      selectInput.addEventListener('change', renderLogicGate);
-      selectInput.dataset.listener = 'true';
-  }
-
-  const maxInputs = parseInt(selectInput.value, 10);
-
   try {
     let ast = parse(normalizedExpr);
-    if (maxInputs > 1) {
-        ast = factorAst(ast, maxInputs);
-    }
     const svg = renderSvg(ast);
     container.appendChild(svg);
   } catch (error) {
@@ -41,7 +30,7 @@ export function renderLogicGate() {
   }
 }
 
-// ----------------- Parser -----------------
+// ----------------- Parser (Binary AST) -----------------
 let tokens = [];
 let currentToken = 0;
 
@@ -66,29 +55,27 @@ function eat(tokenType) {
 
 function parseOr() {
     let node = parseAnd();
-    const children = [node];
     while (currentToken < tokens.length && tokens[currentToken] === '|') {
         eat('|');
-        children.push(parseAnd());
+        node = { type: 'operator', op: '|', left: node, right: parseAnd() };
     }
-    return children.length === 1 ? children[0] : { type: 'operator', op: '|', children: children };
+    return node;
 }
 
 function parseAnd() {
     let node = parseFactor();
-    const children = [node];
     while (currentToken < tokens.length && tokens[currentToken] === '&') {
         eat('&');
-        children.push(parseFactor());
+        node = { type: 'operator', op: '&', left: node, right: parseFactor() };
     }
-    return children.length === 1 ? children[0] : { type: 'operator', op: '&', children: children };
+    return node;
 }
 
 function parseFactor() {
     const token = tokens[currentToken];
     if (token === '!') {
         eat('!');
-        return { type: 'operator', op: '!', children: [parseFactor()] };
+        return { type: 'operator', op: '!', left: parseFactor(), right: null };
     } else if (/[A-Z]/.test(token)) {
         eat(token);
         return { type: 'variable', name: token };
@@ -103,7 +90,7 @@ function parseFactor() {
 }
 
 
-// ----------------- SVG Renderer -----------------
+// ----------------- SVG Renderer (Binary AST) -----------------
 const GATE_WIDTH = 60;
 const GATE_HEIGHT = 40;
 const NOT_GATE_SIZE = 40;
@@ -150,22 +137,20 @@ function layout(node, level) {
         return;
     }
 
-    if (node.children) {
-        let y_sum = 0;
-        node.children.forEach(child => {
-            layout(child, level + 1);
-            y_sum += child.y;
-        });
-        node.y = y_sum / node.children.length;
+    layout(node.left, level + 1);
+    if (node.right) {
+        layout(node.right, level + 1);
+        node.y = (node.left.y + node.right.y) / 2;
+    } else { // NOT gate
+        node.y = node.left.y;
     }
 }
 
 function reverseLayout(node, max_level) {
     if (!node) return;
     node.x = (max_level - node.level) * LEVEL_SEPARATION + PADDING;
-    if (node.children) {
-        node.children.forEach(child => reverseLayout(child, max_level));
-    }
+    reverseLayout(node.left, max_level);
+    reverseLayout(node.right, max_level);
 }
 
 
@@ -174,11 +159,13 @@ function draw(g, node) {
 
     createGate(g, node);
 
-    if (node.children) {
-        node.children.forEach((child, index) => {
-            connect(g, node, child, index);
-            draw(g, child);
-        });
+    if (node.left) {
+        connect(g, node, node.left, node.right ? -1 : 0);
+        draw(g, node.left);
+    }
+    if (node.right) {
+        connect(g, node, node.right, 1);
+        draw(g, node.right);
     }
 }
 
@@ -237,7 +224,7 @@ function createGate(g, node) {
     g.appendChild(group);
 }
 
-function connect(g, fromNode, toNode, index) {
+function connect(g, fromNode, toNode, side) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
     // fromNode is the parent gate, toNode is the child gate/variable
@@ -247,28 +234,24 @@ function connect(g, fromNode, toNode, index) {
     let toX, toY;
     toY = toNode.y;
     if (toNode.type === 'variable') {
-        toX = toNode.x; // Simplified for variables
+        toX = toNode.x; // The 'output' of a variable is its x position
     } else {
         const isNot = toNode.op === '!';
         const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
         toX = toNode.x + width;
         if (isNot) {
-            toX += 10; // Account for negation circle radius and gap
+            toX += 10;
         }
     }
 
     // Calculate the input point on the parent (fromNode)
-    const totalChildren = fromNode.children.length;
     const fromX = fromNode.x;
     const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     let fromY = fromNode.y;
-
-    if (totalChildren > 1) {
-        const halfHeight = fromHeight / 2;
-        const availableSpace = halfHeight * 0.9; // Use 90% of the half-height for pins
-        const spacing = (totalChildren > 1) ? (availableSpace * 2) / (totalChildren - 1) : 0;
-        const startY = fromNode.y - availableSpace;
-        fromY = startY + (index * spacing);
+    if (side === -1) { // Top input
+        fromY -= fromHeight / 4;
+    } else if (side === 1) { // Bottom input
+        fromY += fromHeight / 4;
     }
 
     const midX = fromX - 40;
@@ -279,38 +262,4 @@ function connect(g, fromNode, toNode, index) {
     path.setAttribute("stroke-width", "2");
     path.setAttribute("fill", "none");
     g.insertBefore(path, g.firstChild);
-}
-
-// ----------------- Expression Factoring -----------------
-
-function factorAst(node, maxInputs) {
-    if (!node || node.type !== 'operator' || !node.children) {
-        return node;
-    }
-
-    // Factor children first
-    node.children = node.children.map(child => factorAst(child, maxInputs));
-
-    // If this node has too many inputs, group them
-    if (node.children.length > maxInputs) {
-        const op = node.op;
-        let groups = [];
-        for (let i = 0; i < node.children.length; i += maxInputs) {
-            groups.push(node.children.slice(i, i + maxInputs));
-        }
-
-        let newChildren = groups.map(group => {
-            if (group.length === 1) return group[0];
-            return { type: 'operator', op: op, children: group };
-        });
-
-        // If we created multiple groups, we need to group them again
-        if (newChildren.length > 1) {
-            return factorAst({ type: 'operator', op: op, children: newChildren }, maxInputs);
-        } else {
-            return newChildren[0];
-        }
-    }
-
-    return node;
 }
