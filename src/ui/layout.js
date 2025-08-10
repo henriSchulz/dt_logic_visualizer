@@ -84,12 +84,15 @@ export function updateGridCols() {
   const isMuxActive = isVisible(toggleMux.id);
   const isKmapActive = isVisible(toggleKmap.id);
   const isDevActive = isVisible(toggleBooleanDev.id);
+  const isLogicGateActive = isVisible(viewToggleMappings.toggleLogicGate.id);
+
 
   const truthEl = $(toggleTruthTable.id);
   const exprEl = $(toggleExpressions.id);
   const muxEl = $(toggleMux.id);
   const kmapEl = $(toggleKmap.id);
   const devEl = $(toggleBooleanDev.id);
+  const logicGateEl = $(viewToggleMappings.toggleLogicGate.id);
 
   const GRID1 = "lg: grid-cols-1"
   const GRID2 = "lg:grid-cols-2";
@@ -180,19 +183,30 @@ export function updateGridCols() {
     }
 
     case 5: {
-      if(isLandscape) {
+      if (isLandscape) {
         cardGrid.classList.add(GRID8);
         truthEl.classList.add(ROWS2, COLS2);
-       getOtherActiveCards(toggleTruthTable.id).forEach(el => el.classList.add(COLS3))
-       break;
+        getOtherActiveCards(toggleTruthTable.id).forEach(el => el.classList.add(COLS3));
+        break;
       }
 
       cardGrid.classList.add(GRID3);
       
-      muxEl.classList.add(COLS2);
-
+      if (isMuxActive) {
+        muxEl.classList.add(COLS2);
+      } else if (isLogicGateActive) {
+        logicGateEl.classList.add(COLS2);
+      }
 
       break;
+    }
+    case 6: {
+        if (isLandscape) {
+            cardGrid.classList.add(GRID3);
+            break;
+        }
+        cardGrid.classList.add(GRID3);
+        break;
     }
   }
 }
