@@ -32,40 +32,37 @@ export function updateGridCols() {
     .filter(mapping => $(mapping.id)?.style.display !== "none")
     .map(mapping => $(mapping.id));
 
-  const activeCount = activeCards.length;
+  if (activeCards.length === 0) return;
 
-  if (activeCount === 0) return;
-
-  const isMuxActive = !!activeCards.find(card => card.id === 'muxCard');
-  const isLogicGateActive = !!activeCards.find(card => card.id === 'logicGateCard');
   const muxCard = $('muxCard');
   const logicGateCard = $('logicGateCard');
+  const isMuxActive = muxCard?.style.display !== 'none';
+  const isLogicGateActive = logicGateCard?.style.display !== 'none';
 
-  let gridCols = 3; // Default to 3 columns for lg screens
-
-  if (activeCount === 1) {
-    gridCols = 1;
-  } else if (activeCount === 2) {
-    gridCols = 2;
-  } else if (activeCount === 4) {
-    gridCols = 2;
-  } else {
-    gridCols = 3;
+  let totalSpan = activeCards.length;
+  if (isMuxActive) {
+      muxCard.classList.add('lg:col-span-2');
+      totalSpan += 1;
+  }
+  if (isLogicGateActive) {
+      logicGateCard.classList.add('lg:col-span-2');
+      totalSpan += 1;
   }
 
-  cardGrid.classList.add(`lg:grid-cols-${gridCols}`);
+  // Determine the number of columns for the grid
+  let gridCols = 3;
+  if (totalSpan <= 4) {
+      gridCols = totalSpan;
+  } else if (totalSpan === 5) {
+      gridCols = 3;
+  } else if (totalSpan === 6) {
+      gridCols = 3;
+  } else if (totalSpan > 6) {
+      gridCols = 4;
+  }
 
-  if (activeCount === 3) {
-    if (isMuxActive) muxCard.classList.add('lg:col-span-2');
-    else if (isLogicGateActive) logicGateCard.classList.add('lg:col-span-2');
-  } else if (activeCount === 5) {
-    if (isMuxActive && isLogicGateActive) {
-        muxCard.classList.add('lg:col-span-2');
-        logicGateCard.classList.add('lg:col-span-2');
-    } else if (isMuxActive) {
-        muxCard.classList.add('lg:col-span-2');
-    } else if (isLogicGateActive) {
-        logicGateCard.classList.add('lg:col-span-2');
-    }
+  // Prevent setting grid-cols-0
+  if (gridCols > 0) {
+    cardGrid.classList.add(`lg:grid-cols-${gridCols}`);
   }
 }
