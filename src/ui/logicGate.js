@@ -30,7 +30,7 @@ export function renderLogicGate() {
 
   try {
     let ast = parse(normalizedExpr);
-    if (maxInputs > 1) { // 0 or 1 means no limit
+    if (maxInputs > 1) {
         ast = factorAst(ast, maxInputs);
     }
     const svg = renderSvg(ast);
@@ -66,27 +66,29 @@ function eat(tokenType) {
 
 function parseOr() {
     let node = parseAnd();
+    const children = [node];
     while (currentToken < tokens.length && tokens[currentToken] === '|') {
         eat('|');
-        node = { type: 'operator', op: '|', left: node, right: parseAnd() };
+        children.push(parseAnd());
     }
-    return node;
+    return children.length === 1 ? children[0] : { type: 'operator', op: '|', children: children };
 }
 
 function parseAnd() {
     let node = parseFactor();
+    const children = [node];
     while (currentToken < tokens.length && tokens[currentToken] === '&') {
         eat('&');
-        node = { type: 'operator', op: '&', left: node, right: parseFactor() };
+        children.push(parseFactor());
     }
-    return node;
+    return children.length === 1 ? children[0] : { type: 'operator', op: '&', children: children };
 }
 
 function parseFactor() {
     const token = tokens[currentToken];
     if (token === '!') {
         eat('!');
-        return { type: 'operator', op: '!', left: parseFactor(), right: null };
+        return { type: 'operator', op: '!', children: [parseFactor()] };
     } else if (/[A-Z]/.test(token)) {
         eat(token);
         return { type: 'variable', name: token };
@@ -142,28 +144,28 @@ function layout(node, level) {
     node.level = level;
     if(level > max_level) max_level = level;
 
-    const height = node.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
-
     if (node.type === 'variable') {
         node.y = y_pos;
-        y_pos += height + SIBLING_SEPARATION;
+        y_pos += GATE_HEIGHT + SIBLING_SEPARATION;
         return;
     }
 
-    layout(node.left, level + 1);
-    if (node.right) {
-        layout(node.right, level + 1);
-        node.y = (node.left.y + node.right.y) / 2;
-    } else { // NOT gate
-        node.y = node.left.y;
+    if (node.children) {
+        let y_sum = 0;
+        node.children.forEach(child => {
+            layout(child, level + 1);
+            y_sum += child.y;
+        });
+        node.y = y_sum / node.children.length;
     }
 }
 
 function reverseLayout(node, max_level) {
     if (!node) return;
     node.x = (max_level - node.level) * LEVEL_SEPARATION + PADDING;
-    reverseLayout(node.left, max_level);
-    reverseLayout(node.right, max_level);
+    if (node.children) {
+        node.children.forEach(child => reverseLayout(child, max_level));
+    }
 }
 
 
@@ -172,13 +174,11 @@ function draw(g, node) {
 
     createGate(g, node);
 
-    if (node.left) {
-        connect(g, node, node.left, node.right ? -1 : 0);
-        draw(g, node.left);
-    }
-    if (node.right) {
-        connect(g, node, node.right, 1);
-        draw(g, node.right);
+    if (node.children) {
+        node.children.forEach((child, index) => {
+            connect(g, node, child, index, node.children.length);
+            draw(g, child);
+        });
     }
 }
 
@@ -237,20 +237,17 @@ function createGate(g, node) {
     g.appendChild(group);
 }
 
-function connect(g, fromNode, toNode, side) {
+function connect(g, fromNode, toNode, index, totalChildren) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
-    // --- Calculate connection points ---
-    const fromIsTopInput = side === -1;
-    const fromIsBottomInput = side === 1;
-    const fromIsSingleInput = side === 0;
-
-    const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     const fromX = fromNode.x;
+    const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     let fromY = fromNode.y;
 
-    if (fromIsTopInput) fromY -= fromHeight / 4;
-    if (fromIsBottomInput) fromY += fromHeight / 4;
+    if (totalChildren > 1) {
+        const spacing = fromHeight / (totalChildren + 1);
+        fromY = (fromNode.y - fromHeight / 2) + spacing * (index + 1);
+    }
 
     let toX;
     const toY = toNode.y;
@@ -259,12 +256,11 @@ function connect(g, fromNode, toNode, side) {
     const toWidth = toIsNot ? NOT_GATE_SIZE : GATE_WIDTH;
 
     if (toIsVariable) {
-        // Estimate variable text width (simple approximation)
         toX = toNode.x + toNode.name.length * 10;
     } else {
         toX = toNode.x + toWidth;
         if (toIsNot) {
-            toX += 10; // Account for negation circle
+            toX += 10;
         }
     }
 
@@ -281,58 +277,33 @@ function connect(g, fromNode, toNode, side) {
 // ----------------- Expression Factoring -----------------
 
 function factorAst(node, maxInputs) {
-    if (!node || node.type === 'variable' || maxInputs <= 1) {
+    if (!node || node.type !== 'operator' || !node.children) {
         return node;
     }
 
-    // Recursively factor children first
-    node.left = factorAst(node.left, maxInputs);
-    if (node.right) {
-        node.right = factorAst(node.right, maxInputs);
-    }
+    // Factor children first
+    node.children = node.children.map(child => factorAst(child, maxInputs));
 
-    // If the node is an operator we care about, collect its operands and regroup
-    if (node.type === 'operator' && (node.op === '&' || node.op === '|')) {
-        const operands = [];
-        collectOperands(node, node.op, operands);
-        if (operands.length > maxInputs) {
-            return groupOperands(operands, node.op, maxInputs);
+    // If this node has too many inputs, group them
+    if (node.children.length > maxInputs) {
+        const op = node.op;
+        let groups = [];
+        for (let i = 0; i < node.children.length; i += maxInputs) {
+            groups.push(node.children.slice(i, i + maxInputs));
+        }
+
+        let newChildren = groups.map(group => {
+            if (group.length === 1) return group[0];
+            return { type: 'operator', op: op, children: group };
+        });
+
+        // If we created multiple groups, we need to group them again
+        if (newChildren.length > 1) {
+            return factorAst({ type: 'operator', op: op, children: newChildren }, maxInputs);
+        } else {
+            return newChildren[0];
         }
     }
 
     return node;
-}
-
-function collectOperands(node, op, operands) {
-    if (!node || node.type !== 'operator' || node.op !== op) {
-        operands.push(node);
-        return;
-    }
-    collectOperands(node.left, op, operands);
-    collectOperands(node.right, op, operands);
-}
-
-function groupOperands(operands, op, maxInputs) {
-    if (operands.length <= maxInputs) {
-        return buildTreeFromOperands(operands, op);
-    }
-
-    const newOperands = [
-        buildTreeFromOperands(operands.slice(0, maxInputs), op),
-        ...operands.slice(maxInputs)
-    ];
-
-    return groupOperands(newOperands, op, maxInputs);
-}
-
-function buildTreeFromOperands(operands, op) {
-    if (operands.length === 0) return null;
-    if (operands.length === 1) return operands[0];
-
-    // Create a left-associative tree from the operands
-    let root = { type: 'operator', op: op, left: operands[0], right: operands[1] };
-    for (let i = 2; i < operands.length; i++) {
-        root = { type: 'operator', op: op, left: root, right: operands[i] };
-    }
-    return root;
 }
