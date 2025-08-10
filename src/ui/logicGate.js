@@ -176,7 +176,7 @@ function draw(g, node) {
 
     if (node.children) {
         node.children.forEach((child, index) => {
-            connect(g, node, child, index, node.children.length);
+            connect(g, node, child, index);
             draw(g, child);
         });
     }
@@ -237,7 +237,7 @@ function createGate(g, node) {
     g.appendChild(group);
 }
 
-function connect(g, fromNode, toNode) {
+function connect(g, fromNode, toNode, index) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
     // fromNode is the parent gate, toNode is the child gate/variable
@@ -247,7 +247,7 @@ function connect(g, fromNode, toNode) {
     let toX, toY;
     toY = toNode.y;
     if (toNode.type === 'variable') {
-        toX = toNode.x; // The 'output' of a variable is its x position
+        toX = toNode.x; // Simplified for variables
     } else {
         const isNot = toNode.op === '!';
         const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
@@ -257,20 +257,21 @@ function connect(g, fromNode, toNode) {
         }
     }
 
-    // Find the index of toNode in fromNode's children to determine which input pin to connect to
-    const index = fromNode.children.findIndex(child => child === toNode);
-    const totalChildren = fromNode.children.length;
-
     // Calculate the input point on the parent (fromNode)
+    const totalChildren = fromNode.children.length;
     const fromX = fromNode.x;
     const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
     let fromY = fromNode.y;
+
     if (totalChildren > 1) {
-        const spacing = fromHeight / (totalChildren + 1);
-        fromY = (fromNode.y - fromHeight / 2) + spacing * (index + 1);
+        const halfHeight = fromHeight / 2;
+        const availableSpace = halfHeight * 0.9; // Use 90% of the half-height for pins
+        const spacing = (totalChildren > 1) ? (availableSpace * 2) / (totalChildren - 1) : 0;
+        const startY = fromNode.y - availableSpace;
+        fromY = startY + (index * spacing);
     }
 
-    const midX = fromX - 20 - (index * 15);
+    const midX = fromX - 40;
 
     path.setAttribute("d", `M ${fromX},${fromY} H ${midX} V ${toY} H ${toX}`);
 
