@@ -5,20 +5,18 @@ function resetGridStyles() {
   const cardGrid = document.querySelector("#card-grid");
   if (!cardGrid) return;
 
-  // Remove all grid-related classes
-  const classesToRemove = cardGrid.className.split(' ').filter(c => c.startsWith('lg:grid-cols-'));
-  cardGrid.classList.remove(...classesToRemove);
+  const gridClasses = cardGrid.className.split(' ').filter(c => c.startsWith('lg:grid-cols-'));
+  cardGrid.classList.remove(...gridClasses);
 
-  // Reset span classes on all cards
   const viewToggleMappings = layoutState.viewToggleMappings;
-  const spanClassesToRemove = [
+  const spanClasses = [
     "lg:row-span-1", "lg:row-span-2", "lg:row-span-3", "lg:row-span-4",
     "lg:col-span-1", "lg:col-span-2", "lg:col-span-3", "lg:col-span-4",
   ];
   Object.values(viewToggleMappings).forEach((mapping) => {
     const el = $(mapping.id);
     if (el) {
-      el.classList.remove(...spanClassesToRemove);
+      el.classList.remove(...spanClasses);
     }
   });
 }
@@ -31,54 +29,43 @@ export function updateGridCols() {
   resetGridStyles();
 
   const activeCards = Object.values(viewToggleMappings)
-    .filter(mapping => $(mapping.id)?.style.display !== "none");
+    .filter(mapping => $(mapping.id)?.style.display !== "none")
+    .map(mapping => $(mapping.id));
 
   const activeCount = activeCards.length;
 
-  if (activeCount === 0) {
-    return;
-  }
+  if (activeCount === 0) return;
 
-  let gridColsClass = `lg:grid-cols-1`;
+  const isMuxActive = !!activeCards.find(card => card.id === 'muxCard');
+  const isLogicGateActive = !!activeCards.find(card => card.id === 'logicGateCard');
+  const muxCard = $('muxCard');
+  const logicGateCard = $('logicGateCard');
 
-  if (isLandscape) {
-    // In landscape, use a more horizontal layout
-    if (activeCount <= 3) {
-      gridColsClass = `lg:grid-cols-${activeCount}`;
-    } else if (activeCount === 4) {
-      gridColsClass = 'lg:grid-cols-4';
-    } else if (activeCount === 5) {
-      gridColsClass = 'lg:grid-cols-3'; // 3 on top, 2 below
-    } else if (activeCount >= 6) {
-      gridColsClass = 'lg:grid-cols-3'; // 3x2 grid
-    }
+  let gridCols = 3; // Default to 3 columns for lg screens
+
+  if (activeCount === 1) {
+    gridCols = 1;
+  } else if (activeCount === 2) {
+    gridCols = 2;
+  } else if (activeCount === 4) {
+    gridCols = 2;
   } else {
-    // In portrait, use a more vertical layout
-    if (activeCount === 1) {
-      gridColsClass = 'lg:grid-cols-1';
-    } else if (activeCount <= 3) {
-        gridColsClass = 'lg:grid-cols-1';
-    } else if (activeCount === 4) {
-      gridColsClass = 'lg:grid-cols-2'; // 2x2 grid
-    } else if (activeCount >= 5) {
-      gridColsClass = 'lg:grid-cols-3'; // 3xN grid
-    }
+    gridCols = 3;
   }
 
-  cardGrid.classList.add(gridColsClass);
+  cardGrid.classList.add(`lg:grid-cols-${gridCols}`);
 
-  // Special handling for 5 cards in landscape to make it look better
-  if (isLandscape && activeCount === 5) {
-      const truthCard = $(viewToggleMappings.toggleTruthTable.id);
-      if(truthCard && truthCard.style.display !== 'none') {
-        truthCard.classList.add('lg:col-span-3');
-      }
-  }
-   // Special handling for 6 cards in landscape to make it look better
-  if (isLandscape && activeCount === 6) {
-    const truthCard = $(viewToggleMappings.toggleTruthTable.id);
-    if(truthCard && truthCard.style.display !== 'none') {
-      truthCard.classList.add('lg:col-span-3');
+  if (activeCount === 3) {
+    if (isMuxActive) muxCard.classList.add('lg:col-span-2');
+    else if (isLogicGateActive) logicGateCard.classList.add('lg:col-span-2');
+  } else if (activeCount === 5) {
+    if (isMuxActive && isLogicGateActive) {
+        muxCard.classList.add('lg:col-span-2');
+        logicGateCard.classList.add('lg:col-span-2');
+    } else if (isMuxActive) {
+        muxCard.classList.add('lg:col-span-2');
+    } else if (isLogicGateActive) {
+        logicGateCard.classList.add('lg:col-span-2');
     }
-}
+  }
 }
