@@ -90,83 +90,147 @@ function parseFactor() {
 }
 
 
-// ----------------- SVG Renderer (Binary AST) -----------------
+// ----------------- SVG Renderer (DAG Layout) -----------------
 const GATE_WIDTH = 60;
 const GATE_HEIGHT = 40;
 const NOT_GATE_SIZE = 40;
-const LEVEL_SEPARATION = 100;
-const SIBLING_SEPARATION = 30;
+const LEVEL_SEPARATION = 120;
+const SIBLING_SEPARATION = 40;
 const PADDING = 20;
-
-let y_pos = 0;
-let max_level = 0;
 
 function renderSvg(ast) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     svg.appendChild(g);
 
-    y_pos = PADDING;
-    max_level = 0;
+    const { levels, uniqueInputs, nodeMap } = processAstForDag(ast);
 
-    layout(ast, 0);
+    layoutDag(levels, uniqueInputs, nodeMap);
 
-    const totalWidth = (max_level + 1) * LEVEL_SEPARATION + GATE_WIDTH + PADDING * 2;
-    const totalHeight = y_pos + PADDING;
+    drawDag(g, levels, uniqueInputs, nodeMap);
+
+    const maxLevel = levels.length;
+    const totalWidth = (maxLevel + 1) * LEVEL_SEPARATION + PADDING * 2;
+    const yPositions = [...Object.values(uniqueInputs).map(n => n.y), ...Object.values(nodeMap).map(n => n.y)];
+    const totalHeight = Math.max(0, ...yPositions) + GATE_HEIGHT + PADDING;
 
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", totalHeight);
     svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
 
-    reverseLayout(ast, max_level);
-
-    draw(g, ast);
-
     return svg;
 }
 
-function layout(node, level) {
-    if (!node) return;
+function processAstForDag(ast) {
+    const nodeMap = new Map();
+    const uniqueInputs = {};
+    let nodeIdCounter = 0;
 
-    node.level = level;
-    if(level > max_level) max_level = level;
+    function traverse(node) {
+        if (!node) return null;
 
-    if (node.type === 'variable') {
-        node.y = y_pos;
-        y_pos += GATE_HEIGHT + SIBLING_SEPARATION;
-        return;
+        // Create a unique ID for every node to handle shared subtrees
+        if (!node.hasOwnProperty('id')) {
+            node.id = nodeIdCounter++;
+        }
+
+        if (nodeMap.has(node.id)) return node.id;
+
+        nodeMap.set(node.id, node);
+
+        if (node.type === 'variable') {
+            if (!uniqueInputs[node.name]) {
+                uniqueInputs[node.name] = { ...node, isUniqueInput: true, id: `input-${node.name}` };
+            }
+            node.uniqueInputId = `input-${node.name}`;
+            node.level = 0;
+            return node.id;
+        }
+
+        const leftId = traverse(node.left);
+        const rightId = traverse(node.right);
+
+        const leftNode = leftId !== null ? nodeMap.get(leftId) : null;
+        const rightNode = rightId !== null ? nodeMap.get(rightId) : null;
+
+        node.level = 1 + Math.max(leftNode ? leftNode.level : -1, rightNode ? rightNode.level : -1);
+
+        return node.id;
     }
 
-    layout(node.left, level + 1);
-    if (node.right) {
-        layout(node.right, level + 1);
-        node.y = (node.left.y + node.right.y) / 2;
-    } else { // NOT gate
-        node.y = node.left.y;
+    traverse(ast);
+
+    const levels = [];
+    for (const node of nodeMap.values()) {
+        if (node.type === 'variable') continue;
+        if (!levels[node.level]) {
+            levels[node.level] = [];
+        }
+        levels[node.level].push(node);
     }
+
+    // Remove empty levels and shift levels to start from 0
+    const compactedLevels = levels.filter(l => l && l.length > 0);
+    compactedLevels.forEach((level, i) => level.forEach(node => node.level = i + 1));
+
+    return { levels: compactedLevels, uniqueInputs, nodeMap };
 }
 
-function reverseLayout(node, max_level) {
-    if (!node) return;
-    node.x = (max_level - node.level) * LEVEL_SEPARATION + PADDING;
-    reverseLayout(node.left, max_level);
-    reverseLayout(node.right, max_level);
+function layoutDag(levels, uniqueInputs, nodeMap) {
+    let y = PADDING;
+    const sortedInputs = Object.values(uniqueInputs).sort((a, b) => a.name.localeCompare(b.name));
+    for (const inputNode of sortedInputs) {
+        inputNode.x = PADDING;
+        inputNode.y = y;
+        y += GATE_HEIGHT + SIBLING_SEPARATION;
+    }
+
+    levels.forEach((level) => {
+        level.forEach(node => {
+            node.x = node.level * LEVEL_SEPARATION + PADDING;
+
+            let y_sum = 0;
+            let count = 0;
+            const children = [node.left, node.right].filter(c => c);
+
+            children.forEach(child => {
+                const childNode = nodeMap.get(child.id);
+                if (childNode.type === 'variable') {
+                    y_sum += uniqueInputs[childNode.name].y;
+                } else {
+                    y_sum += childNode.y;
+                }
+                count++;
+            });
+            node.y = count > 0 ? y_sum / count : PADDING;
+        });
+
+        level.sort((a, b) => a.y - b.y);
+        for (let i = 1; i < level.length; i++) {
+            const prev = level[i-1];
+            const curr = level[i];
+            const requiredY = prev.y + GATE_HEIGHT + SIBLING_SEPARATION;
+            if (curr.y < requiredY) {
+                curr.y = requiredY;
+            }
+        }
+    });
 }
 
+function drawDag(g, levels, uniqueInputs, nodeMap) {
+    Object.values(uniqueInputs).forEach(node => createGate(g, node));
+    levels.forEach(level => level.forEach(node => createGate(g, node)));
 
-function draw(g, node) {
-    if (!node) return;
-
-    createGate(g, node);
-
-    if (node.left) {
-        connect(g, node, node.left, node.right ? -1 : 0);
-        draw(g, node.left);
-    }
-    if (node.right) {
-        connect(g, node, node.right, 1);
-        draw(g, node.right);
-    }
+    levels.forEach(level => {
+        level.forEach(parentNode => {
+            const children = [parentNode.left, parentNode.right].filter(c => c);
+            children.forEach((child, index) => {
+                const childNode = nodeMap.get(child.id);
+                const sourceNode = childNode.isUniqueInput ? uniqueInputs[childNode.name] : childNode;
+                connect(g, parentNode, sourceNode, index, children.length);
+            });
+        });
+    });
 }
 
 function createGate(g, node) {
@@ -176,8 +240,9 @@ function createGate(g, node) {
     const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
     const height = isNot ? NOT_GATE_SIZE : GATE_HEIGHT;
 
-    if (node.type === 'variable') {
-        group.setAttribute("transform", `translate(${node.x}, ${node.y - height / 2})`);
+    group.setAttribute("transform", `translate(${node.x}, ${node.y - height / 2})`);
+
+    if (node.isUniqueInput) {
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", 0);
         text.setAttribute("y", height / 2);
@@ -186,9 +251,7 @@ function createGate(g, node) {
         text.setAttribute("font-size", "20");
         text.textContent = node.name;
         group.appendChild(text);
-    } else {
-        group.setAttribute("transform", `translate(${node.x}, ${node.y - height / 2})`);
-
+    } else { // It's a gate
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("width", width);
         rect.setAttribute("height", height);
@@ -224,37 +287,36 @@ function createGate(g, node) {
     g.appendChild(group);
 }
 
-function connect(g, fromNode, toNode, side) {
+function connect(g, parentNode, childNode, index, totalChildren) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
-    // fromNode is the parent gate, toNode is the child gate/variable
-    // The line goes from the output of toNode to an input of fromNode
-
-    // Calculate the output point of the child (toNode)
-    let toX, toY;
-    toY = toNode.y;
-    if (toNode.type === 'variable') {
-        toX = toNode.x; // The 'output' of a variable is its x position
+    // Output point of the childNode
+    let fromX, fromY;
+    fromY = childNode.y;
+    if (childNode.isUniqueInput) {
+        fromX = childNode.x + childNode.name.length * 10; // Approx width of text
     } else {
-        const isNot = toNode.op === '!';
+        const isNot = childNode.op === '!';
         const width = isNot ? NOT_GATE_SIZE : GATE_WIDTH;
-        toX = toNode.x + width;
+        fromX = childNode.x + width;
         if (isNot) {
-            toX += 10;
+            fromX += 10;
         }
     }
 
-    // Calculate the input point on the parent (fromNode)
-    const fromX = fromNode.x;
-    const fromHeight = fromNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
-    let fromY = fromNode.y;
-    if (side === -1) { // Top input
-        fromY -= fromHeight / 4;
-    } else if (side === 1) { // Bottom input
-        fromY += fromHeight / 4;
+    // Input point on the parentNode
+    const toX = parentNode.x;
+    const toHeight = parentNode.op === '!' ? NOT_GATE_SIZE : GATE_HEIGHT;
+    let toY = parentNode.y;
+    if (totalChildren > 1) {
+        const halfHeight = toHeight / 2;
+        const availableSpace = halfHeight * 0.9;
+        const spacing = (totalChildren > 1) ? (availableSpace * 2) / (totalChildren - 1) : 0;
+        const startY = parentNode.y - availableSpace;
+        toY = startY + (index * spacing);
     }
 
-    const midX = fromX - 40;
+    const midX = fromX + LEVEL_SEPARATION / 2;
 
     path.setAttribute("d", `M ${fromX},${fromY} H ${midX} V ${toY} H ${toX}`);
 
